@@ -24,3 +24,18 @@ seed:
 .PHONY: gen-docs
 gen-docs:
 	@swag init -g ./api/main.go -d cmd,internal && swag fmt
+
+docker_up:
+	docker-compose up -d
+
+docker_down:
+	docker-compose down
+
+create_db:
+docker exec -it postgres-db createdb --username=admin --owner=root simple_bank
+
+drop_db:
+docker exec -it postgres-db dropdb simple_bank
+
+fmt:
+	go fmt ./...

@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-
 func New(address string, maxOpenConns int, maxIdleConns int, maxIdleTime string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", address)
 	if err != nil {

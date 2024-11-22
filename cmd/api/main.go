@@ -15,6 +15,8 @@ func main() {
 		writeTimeout: 10 * time.Second,
 		readTimeout:  5 * time.Second,
 		idleTimeout:  60 * time.Second,
+		env:          env.GetString("ENV", "development"),
+		version:      "1.0.0",
 		db: dbConfig{
 			address: env.GetString("DB_ADDRESS",
 				"postgres://admin:adminpassword@localhost:5432/socialnetwork?sslmode=disable"),
