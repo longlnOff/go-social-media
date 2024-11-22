@@ -1,0 +1,65 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+	"github.com/longln/go-social-media/internal/store"
+)
+
+type application struct {
+	config config
+	store  store.Storage
+}
+
+type dbConfig struct {
+	address      string
+	maxOpenConns int
+	maxIdleConns int
+	maxIdleTime  string
+}
+
+type config struct {
+	address      string
+	writeTimeout time.Duration
+	readTimeout  time.Duration
+	idleTimeout  time.Duration
+	db           dbConfig
+}
+
+func (app *application) mount() http.Handler {
+	r := chi.NewRouter()
+
+	// A good base middleware stack
+	// r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+
+	// Set a timeout value on the request context (ctx), that will signal
+	// through ctx.Done() that the request has timed out and further
+	// processing should be stopped.
+	r.Use(middleware.Timeout(60 * time.Second))
+
+	r.Route("/v1", func(r chi.Router) {
+		r.Get("/health", app.healthcheckHandler)
+	})
+
+	return r
+}
+
+func (app *application) serve(mux http.Handler) error {
+
+	server := http.Server{
+		Addr:         app.config.address,
+		Handler:      mux,
+		WriteTimeout: app.config.writeTimeout,
+		ReadTimeout:  app.config.readTimeout,
+		IdleTimeout:  app.config.idleTimeout,
+	}
+	log.Printf("Starting server on %s", app.config.address)
+	return server.ListenAndServe()
+}
