@@ -32,10 +32,10 @@ docker_down:
 	docker compose down
 
 create_db:
-	docker exec -it postgres-db createdb --username=admin --owner=root simple_bank
+	docker exec -it postgres-db createdb --username=admin --owner=admin socialnetwork
 
 drop_db:
-	docker exec -it postgres-db dropdb simple_bank
+	docker exec -it postgres-db dropdb --username=admin socialnetwork
 
 fmt:
 	go fmt ./...
