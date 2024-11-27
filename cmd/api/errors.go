@@ -19,3 +19,8 @@ func (app *application) notFoundResponse(w http.ResponseWriter, r *http.Request,
 	log.Printf("not found: %s, path: %s, error: %s", r.Method, r.URL.Path, err)
 	writeJSONError(w, http.StatusNotFound, err.Error())
 }
+
+func (app *application) conflictResponse(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("conflict: %s, path: %s, error: %s", r.Method, r.URL.Path, err)
+	writeJSONError(w, http.StatusConflict, err.Error())
+}
