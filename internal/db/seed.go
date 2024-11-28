@@ -2,23 +2,27 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"log"
-	"strconv"
 	"math/rand"
+	"strconv"
+
 	"github.com/longln/go-social-media/internal/store"
 )
 
-func Seed(store store.Storage) {
+func Seed(store store.Storage, db *sql.DB) {
 	ctx := context.Background()
-
 	users := generateUsers(100)
+	tx, _ := db.BeginTx(ctx, nil)
 	for _, user := range users {
-		err := store.Users.Create(ctx, user)
+		err := store.Users.Create(ctx, user, tx)
 		if err != nil {
+			_ = tx.Rollback()
 			log.Println("Error creating user:", err)
 			return
 		}
 	}
+	tx.Commit()
 
 	posts := generatePosts(100, users)
 	for _, post := range posts {
@@ -41,14 +45,12 @@ func Seed(store store.Storage) {
 	log.Println("Seeding complete")
 }
 
-
 func generateUsers(n int) []*store.User {
 	users := make([]*store.User, n)
 	for i := 0; i < n; i++ {
 		users[i] = &store.User{
 			Username: "user" + strconv.Itoa(i),
 			Email:    "user" + strconv.Itoa(i) + "@example.com",
-			Password: "password",
 		}
 	}
 	return users
@@ -62,7 +64,7 @@ func generatePosts(n int, users []*store.User) []*store.Post {
 			Content: "Content of post " + strconv.Itoa(i),
 			UserID:  users[i].ID,
 			User:    *users[i],
-			Tags: []string{"tag1", "tag2"},
+			Tags:    []string{"tag1", "tag2"},
 		}
 	}
 	return posts

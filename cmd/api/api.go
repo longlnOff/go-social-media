@@ -1,18 +1,22 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/longln/go-social-media/docs"
 	"github.com/longln/go-social-media/internal/store"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
+	"go.uber.org/zap"
 )
 
 type application struct {
 	config config
 	store  store.Storage
+	logger *zap.SugaredLogger
 }
 
 type dbConfig struct {
@@ -30,6 +34,12 @@ type config struct {
 	db           dbConfig
 	env          string
 	version      string
+	apiURL       string
+	mail         mailConfig
+}
+
+type mailConfig struct {
+	exp time.Duration
 }
 
 func (app *application) mount() http.Handler {
@@ -49,6 +59,9 @@ func (app *application) mount() http.Handler {
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/health", app.healthcheckHandler)
 
+		docsURL := fmt.Sprintf("%s/swagger/doc.json", app.config.address)
+		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL(docsURL)))
+
 		r.Route("/posts", func(r chi.Router) {
 			r.Post("/", app.createPostHandler)
 
@@ -61,12 +74,25 @@ func (app *application) mount() http.Handler {
 		})
 
 		r.Route("/users", func(r chi.Router) {
+			r.Put("/activate/{token}", app.activateUserHandler)
 			r.Route("/{userID}", func(r chi.Router) {
 				r.Use(app.userContextMiddleware)
 				r.Get("/", app.getUserHandler)
 				r.Put("/follow", app.followUserHandler)
 				r.Put("/unfollow", app.unfollowUserHandler)
 			})
+
+			r.Group(func(r chi.Router) {
+				// TODO: Authentication middleware
+				r.Get("/feed", app.getUserFeedHandler)
+			})
+
+		})
+
+		// public routes
+		r.Route("/authentication", func(r chi.Router) {
+			r.Post("/user", app.registerUserHandler)
+			// r.Post("/token", app.loginUserHandler)
 		})
 	})
 
@@ -74,6 +100,10 @@ func (app *application) mount() http.Handler {
 }
 
 func (app *application) serve(mux http.Handler) error {
+	// Docs
+	docs.SwaggerInfo.Version = app.config.version
+	docs.SwaggerInfo.Host = app.config.apiURL
+	docs.SwaggerInfo.BasePath = "/v1"
 
 	server := http.Server{
 		Addr:         app.config.address,
@@ -82,6 +112,6 @@ func (app *application) serve(mux http.Handler) error {
 		ReadTimeout:  app.config.readTimeout,
 		IdleTimeout:  app.config.idleTimeout,
 	}
-	log.Printf("Starting server on %s", app.config.address)
+	app.logger.Infof("Starting server on %s", app.config.address)
 	return server.ListenAndServe()
 }

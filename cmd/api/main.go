@@ -1,22 +1,48 @@
 package main
 
 import (
-	"log"
 	"time"
 
 	"github.com/longln/go-social-media/internal/db"
 	"github.com/longln/go-social-media/internal/env"
 	"github.com/longln/go-social-media/internal/store"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+var version string = "1.0.0"
+
+//	@title			Social Media
+//	@description	API for Go Social Media
+//	@termsOfService	http://swagger.io/terms/
+
+//	@contact.name	longln
+//	@contact.url	http://www.swagger.io/support
+//	@contact.email	support@swagger.io
+
+//	@license.name	Apache 2.0
+//	@license.url	http://www.apache.org/licenses/LICENSE-2.0.html
+
+//	@BasePath	/v1
+
+//	@securityDefinitions.apikey	ApiKeyAuth
+//	@in							header
+//	@name						Authorization
+//	@description
 
 func main() {
 	cfg := config{
+		apiURL:       env.GetString("EXTERNAL_URL", "localhost:4000"),
 		address:      env.GetString("ADDRESS", ":4000"),
 		writeTimeout: 10 * time.Second,
 		readTimeout:  5 * time.Second,
 		idleTimeout:  60 * time.Second,
 		env:          env.GetString("ENV", "development"),
-		version:      "1.0.0",
+		version:      version,
+		mail: mailConfig{
+			exp: 15 * time.Minute,
+		},
+
 		db: dbConfig{
 			address: env.GetString("DB_ADDRESS",
 				"postgres://admin:adminpassword@localhost:5432/socialnetwork?sslmode=disable"),
@@ -25,20 +51,33 @@ func main() {
 			maxIdleTime:  env.GetString("DB_MAX_IDLE_TIME", "15m"),
 		},
 	}
+
+	// Logger
+	config := zap.NewProductionConfig()
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	// turn off stack trace
+	config.DisableStacktrace = true
+
+	logger := zap.Must(config.Build()).Sugar()
+	defer logger.Sync()
+
+	// Database
 	db, err := db.New(cfg.db.address, cfg.db.maxOpenConns, cfg.db.maxIdleConns, cfg.db.maxIdleTime)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 	defer db.Close()
-	log.Printf("Connected to database %s", cfg.db.address)
-	log.Println("database connection pool established")
+	logger.Infof("Connected to database %s", cfg.db.address)
+	logger.Info("database connection pool established")
 	store := store.NewStorage(db)
 
 	app := application{
 		config: cfg,
 		store:  store,
+		logger: logger,
 	}
 
-	log.Fatal(app.serve(app.mount()))
+	logger.Fatal(app.serve(app.mount()))
 
 }
