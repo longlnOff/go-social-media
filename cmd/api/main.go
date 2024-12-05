@@ -5,6 +5,7 @@ import (
 
 	"github.com/longln/go-social-media/internal/db"
 	"github.com/longln/go-social-media/internal/env"
+	"github.com/longln/go-social-media/internal/mailer"
 	"github.com/longln/go-social-media/internal/store"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -34,6 +35,7 @@ func main() {
 	cfg := config{
 		apiURL:       env.GetString("EXTERNAL_URL", "localhost:4000"),
 		address:      env.GetString("ADDRESS", ":4000"),
+		frontendURL:  env.GetString("FRONTEND_URL", "http://localhost:3000"),
 		writeTimeout: 10 * time.Second,
 		readTimeout:  5 * time.Second,
 		idleTimeout:  60 * time.Second,
@@ -41,6 +43,10 @@ func main() {
 		version:      version,
 		mail: mailConfig{
 			exp: 15 * time.Minute,
+			fromEmail: env.GetString("FROM_EMAIL", "3t4H9@example.com"),
+			sendGrid: sendGridConfig{
+				apiKey: env.GetString("SENDGRID_API_KEY", ""),
+			},
 		},
 
 		db: dbConfig{
@@ -72,10 +78,16 @@ func main() {
 	logger.Info("database connection pool established")
 	store := store.NewStorage(db)
 
+	mailer := mailer.NewSendGridMailer(
+						cfg.mail.fromEmail,
+						cfg.mail.sendGrid.apiKey,
+					)
+
 	app := application{
 		config: cfg,
 		store:  store,
 		logger: logger,
+		mailer: mailer,
 	}
 
 	logger.Fatal(app.serve(app.mount()))

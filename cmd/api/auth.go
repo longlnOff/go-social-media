@@ -3,9 +3,11 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/longln/go-social-media/internal/mailer"
 	"github.com/longln/go-social-media/internal/store"
 )
 
@@ -73,11 +75,29 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// send mail
+	isProdEnv := app.config.env == "production"
+	vars := struct {
+		Username string
+		ActivationURL string
+	}{
+		Username: user.Username,
+		ActivationURL: fmt.Sprintf("%s/confirm/%s", app.config.frontendURL, plainToken),
 
-	if err := app.jsonResponse(w, http.StatusCreated, userWithToken); err != nil {
+	}
+	// we can improve by using message queue and apply publish-subscribe pattern
+	status, err := app.mailer.Send(mailer.UserWelcomeTemplate, user.Username, user.Email, vars, !isProdEnv)
+	if err != nil {
+		app.logger.Errorw("error sending welcome email", "error", err)
+		// rollback user creation if email fails (SAGA pattern)
+		if err := app.store.Users.Delete(ctx, user.ID); err != nil {
+			app.logger.Errorw("error deleting user", "error", err)
+		}
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	if err := app.jsonResponse(w, status, userWithToken); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
 }
-
-// 2714331f-392a-4c94-9d4f-638b9acd7b1c
